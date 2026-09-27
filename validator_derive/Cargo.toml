@@ -1,0 +1,25 @@
+[package]
+name = "validator_derive"
+version = "0.20.1"
+authors = ["Vincent Prouillet <hello@vincentprouillet.com>"]
+license = "MIT"
+description = "Macros 1.1 implementation of #[derive(Validate)]"
+homepage = "https://github.com/Keats/validator"
+repository = "https://github.com/Keats/validator"
+keywords = ["validation", "api", "validator"]
+edition = "2024"
+readme = "../README.md"
+rust-version = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2"
+quote = "1"
+proc-macro2 = "1"
+proc-macro-error3 = "3"
+darling = { version = "0.23", features = ["suggestions"] }
+
+[features]
+nightly_features = ["proc-macro-error3/nightly"]
