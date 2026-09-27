@@ -1,4 +1,4 @@
-use crate::types::{ValidationErrors, ValidationErrorsKind};
+use crate::types::{ValidationErrors, ValidationErrorsKind, TMP_COLLECTION_KEY};
 use std::borrow::Cow;
 use std::collections::btree_map::BTreeMap;
 use std::collections::HashMap;
@@ -33,7 +33,7 @@ macro_rules! impl_validate_list {
                 } else {
                     let err_kind = ValidationErrorsKind::List(vec_err);
                     let errors = ValidationErrors(std::collections::HashMap::from([(
-                        Cow::Borrowed("_tmp_validator"),
+                        Cow::Borrowed(TMP_COLLECTION_KEY),
                         err_kind,
                     )]));
                     Err(errors)
@@ -66,7 +66,7 @@ impl<T: Validate, const N: usize> Validate for [T; N] {
         } else {
             let err_kind = ValidationErrorsKind::List(vec_err);
             let errors = ValidationErrors(std::collections::HashMap::from([(
-                Cow::Borrowed("_tmp_validator"),
+                Cow::Borrowed(TMP_COLLECTION_KEY),
                 err_kind,
             )]));
             Err(errors)
@@ -89,7 +89,7 @@ impl<K, V: Validate, S> Validate for &HashMap<K, V, S> {
         } else {
             let err_kind = ValidationErrorsKind::List(vec_err);
             let errors =
-                ValidationErrors(HashMap::from([(Cow::Borrowed("_tmp_validator"), err_kind)]));
+                ValidationErrors(HashMap::from([(Cow::Borrowed(TMP_COLLECTION_KEY), err_kind)]));
             Err(errors)
         }
     }
@@ -110,7 +110,7 @@ impl<K, V: Validate> Validate for &BTreeMap<K, V> {
         } else {
             let err_kind = ValidationErrorsKind::List(vec_err);
             let errors =
-                ValidationErrors(HashMap::from([(Cow::Borrowed("_tmp_validator"), err_kind)]));
+                ValidationErrors(HashMap::from([(Cow::Borrowed(TMP_COLLECTION_KEY), err_kind)]));
             Err(errors)
         }
     }

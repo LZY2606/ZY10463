@@ -1,5 +1,16 @@
 ## Changelog
 
+## Unreleased
+
+- Fix `ValidationErrors::merge` burying collection indices under the internal
+  `_tmp_validator` key: collections merged through `merge` now attach as a
+  `List` directly under the field, like `merge_self`
+- Fix `ValidationErrors::merge_all` silently dropping element results that were
+  not pre-wrapped with `ValidationErrors::merge`: raw `element.validate()`
+  results now keep their index, including schema-level (`__all__`) errors
+- Fix `ValidationErrorsKind` deserialization degrading collection indices to a
+  `Struct`: JSON objects keyed by collection indices now deserialize as `List`
+
 ## 0.21.0 (2026/07/09)
 
 - Replace dep proc-macro-error2 with proc-macro-error3

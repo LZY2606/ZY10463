@@ -360,6 +360,13 @@ if an error happened while validating the struct fields.
 
 Any error on the struct level validation will appear in the key `__all__` of the hashmap of errors.
 
+When a struct inside a collection fails both field-level and schema-level validation, the
+schema error stays attached to the element it belongs to: the parent result contains a
+`List` keyed by the collection index, and each failing element holds its own field errors
+alongside its own `__all__` entry. Schema errors are never hoisted to the containing struct
+or disguised as field errors, so the position of every error is preserved when results are
+merged with `ValidationErrors::merge`, `merge_self` or `merge_all`.
+
 ## Message and code
 
 Each validator can take 2 optional arguments in addition to their own arguments:

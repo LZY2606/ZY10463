@@ -1,9 +1,16 @@
 use std::borrow::Cow;
 use std::collections::{hash_map::Entry::Vacant, BTreeMap, HashMap};
 
+use serde::de::Error as DeError;
 use serde::ser::Serialize;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{to_value, Value};
+
+/// Internal key used by the `Validate` implementations of collection types to smuggle a
+/// `ValidationErrorsKind::List` out of `validate()` before it is attached to the field path.
+/// It is stripped when the errors are merged into a parent `ValidationErrors` and must never
+/// appear in serialized output for a single collection level.
+pub(crate) const TMP_COLLECTION_KEY: &str = "_tmp_validator";
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ValidationError {
@@ -38,12 +45,51 @@ impl std::error::Error for ValidationError {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum ValidationErrorsKind {
     Struct(Box<ValidationErrors>),
     List(BTreeMap<usize, Box<ValidationErrors>>),
     Field(Vec<ValidationError>),
+}
+
+impl<'de> serde::Deserialize<'de> for ValidationErrorsKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Go through `Value` so collection indices keep their `List` shape: a JSON object
+        // whose keys all parse as indices (and whose values are all objects) is a `List`,
+        // any other object is a `Struct`. Error JSON produced before this change stays
+        // deserializable: field errors are arrays and struct-level objects only change
+        // meaning when they carry the exact index shape a `List` serializes to.
+        match serde::Deserialize::deserialize(deserializer)? {
+            Value::Array(errors) => {
+                <Vec<ValidationError> as serde::Deserialize>::deserialize(Value::Array(errors))
+                    .map(ValidationErrorsKind::Field)
+                    .map_err(D::Error::custom)
+            }
+            Value::Object(map) => {
+                let is_list = !map.is_empty()
+                    && map.keys().all(|key| key.parse::<usize>().is_ok())
+                    && map.values().all(|value| value.is_object());
+                if is_list {
+                    <BTreeMap<usize, Box<ValidationErrors>> as serde::Deserialize>::deserialize(
+                        Value::Object(map),
+                    )
+                    .map(ValidationErrorsKind::List)
+                    .map_err(D::Error::custom)
+                } else {
+                    <ValidationErrors as serde::Deserialize>::deserialize(Value::Object(map))
+                        .map(|errors| ValidationErrorsKind::Struct(Box::new(errors)))
+                        .map_err(D::Error::custom)
+                }
+            }
+            other => Err(D::Error::custom(format!(
+                "expected an array of field errors or an object of nested errors, got {other}"
+            ))),
+        }
+    }
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -72,16 +118,8 @@ impl ValidationErrors {
     ) -> &mut ValidationErrors {
         match child {
             Ok(()) => self,
-            Err(mut errors) => {
-                // This is a bit of a hack to be able to support collections which return a
-                // `ValidationErrors` with a made-up `_tmp_validator` entry which we need to strip
-                // off.
-                if let Some(collection) = errors.0.remove("_tmp_validator") {
-                    self.add_nested(field, collection);
-                } else {
-                    self.add_nested(field, ValidationErrorsKind::Struct(Box::new(errors)));
-                }
-
+            Err(errors) => {
+                self.add_nested(field, errors.into_kind());
                 self
             }
         }
@@ -89,6 +127,10 @@ impl ValidationErrors {
 
     /// Returns the combined outcome of a struct's validation result along with the nested
     /// validation result for one of its fields.
+    ///
+    /// If the child result comes from a collection of validating structs, the collection
+    /// indices are attached directly to `field` as a `ValidationErrorsKind::List`, exactly
+    /// like [`ValidationErrors::merge_self`] does.
     pub fn merge(
         parent: Result<(), ValidationErrors>,
         field: &'static str,
@@ -98,7 +140,7 @@ impl ValidationErrors {
             Ok(()) => parent,
             Err(errors) => {
                 parent.and_then(|_| Err(ValidationErrors::new())).map_err(|mut parent_errors| {
-                    parent_errors.add_nested(field, ValidationErrorsKind::Struct(Box::new(errors)));
+                    parent_errors.add_nested(field, errors.into_kind());
                     parent_errors
                 })
             }
@@ -107,6 +149,15 @@ impl ValidationErrors {
 
     /// Returns the combined outcome of a struct's validation result along with the nested
     /// validation result for one of its fields where that field is a vector of validating structs.
+    ///
+    /// Each child result keeps its own index in the resulting `ValidationErrorsKind::List`.
+    /// Two child shapes are recognised:
+    ///
+    /// - the wrapped shape produced by `ValidationErrors::merge(.., field, ..)`, i.e. a sole
+    ///   `{field: Struct(errors)}` entry, which is unwrapped one level;
+    /// - a raw `element.validate()` result, which is used as-is so that field errors,
+    ///   schema-level (`__all__`) errors and nested errors of the element all stay attached
+    ///   to the element's index instead of being silently dropped.
     pub fn merge_all(
         parent: Result<(), ValidationErrors>,
         field: &'static str,
@@ -115,11 +166,8 @@ impl ValidationErrors {
         let errors = children
             .into_iter()
             .enumerate()
-            .filter_map(|(i, res)| res.err().map(|mut err| (i, err.remove(field))))
-            .filter_map(|(i, entry)| match entry {
-                Some(ValidationErrorsKind::Struct(errors)) => Some((i, errors)),
-                _ => None,
-            })
+            .filter_map(|(i, res)| res.err().map(|err| (i, err)))
+            .map(|(i, err)| (i, Box::new(err.into_element(field))))
             .collect::<BTreeMap<_, _>>();
 
         if errors.is_empty() {
@@ -130,6 +178,31 @@ impl ValidationErrors {
                 parent_errors
             })
         }
+    }
+
+    /// Converts the outcome of a nested `validate()` call into the `ValidationErrorsKind`
+    /// to attach to a field path, stripping the internal carrier entry that collection
+    /// `Validate` implementations use to smuggle a `List` out of `validate()`.
+    fn into_kind(mut self) -> ValidationErrorsKind {
+        if self.0.len() == 1 {
+            if let Some(kind) = self.0.remove(TMP_COLLECTION_KEY) {
+                return kind;
+            }
+        }
+        ValidationErrorsKind::Struct(Box::new(self))
+    }
+
+    /// Extracts the element-level errors of a single collection member's validation result,
+    /// see [`ValidationErrors::merge_all`] for the recognised shapes.
+    fn into_element(mut self, field: &str) -> ValidationErrors {
+        let is_wrapped =
+            self.0.len() == 1 && matches!(self.0.get(field), Some(ValidationErrorsKind::Struct(_)));
+        if is_wrapped {
+            if let Some(ValidationErrorsKind::Struct(inner)) = self.0.remove(field) {
+                return *inner;
+            }
+        }
+        self
     }
 
     /// Returns a map of field-level validation errors found for the struct that was validated and
@@ -191,10 +264,6 @@ impl ValidationErrors {
     #[must_use]
     fn contains_key(&self, field: &'static str) -> bool {
         self.0.contains_key(field)
-    }
-
-    fn remove(&mut self, field: &'static str) -> Option<ValidationErrorsKind> {
-        self.0.remove(field)
     }
 }
 
