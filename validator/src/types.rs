@@ -42,9 +42,17 @@ impl std::error::Error for ValidationError {
 #[serde(untagged)]
 pub enum ValidationErrorsKind {
     Struct(Box<ValidationErrors>),
-    List(BTreeMap<usize, Box<ValidationErrors>>),
+    List(BTreeMap<usize, Box<ValidationErrorsKind>>),
     Field(Vec<ValidationError>),
 }
+
+/// Key used by the `Validate` implementations of collections to smuggle a
+/// [`ValidationErrorsKind::List`] through a [`ValidationErrors`], which can only
+/// map string keys to error kinds. It is an internal implementation detail that
+/// must be stripped off (see [`ValidationErrors::into_kind`]) before the errors
+/// are attached to a field path; it is never part of the public error tree or
+/// its serialization.
+pub(crate) const TMP_VALIDATOR_KEY: &str = "_tmp_validator";
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ValidationErrors(pub HashMap<Cow<'static, str>, ValidationErrorsKind>);
@@ -72,18 +80,26 @@ impl ValidationErrors {
     ) -> &mut ValidationErrors {
         match child {
             Ok(()) => self,
-            Err(mut errors) => {
-                // This is a bit of a hack to be able to support collections which return a
-                // `ValidationErrors` with a made-up `_tmp_validator` entry which we need to strip
-                // off.
-                if let Some(collection) = errors.0.remove("_tmp_validator") {
-                    self.add_nested(field, collection);
-                } else {
-                    self.add_nested(field, ValidationErrorsKind::Struct(Box::new(errors)));
-                }
-
+            Err(errors) => {
+                self.add_nested(field, errors.into_kind());
                 self
             }
+        }
+    }
+
+    /// Splits a nested validation result into the [`ValidationErrorsKind`] that
+    /// should be attached to the path of the field that was validated.
+    ///
+    /// Struct validations become [`ValidationErrorsKind::Struct`]. Collections
+    /// return their errors with a made-up `_tmp_validator` entry which is
+    /// stripped off here so that the list indices stay attached to the field
+    /// path instead of being detached behind the internal marker key.
+    #[must_use]
+    pub fn into_kind(mut self) -> ValidationErrorsKind {
+        if let Some(collection) = self.0.remove(TMP_VALIDATOR_KEY) {
+            collection
+        } else {
+            ValidationErrorsKind::Struct(Box::new(self))
         }
     }
 
@@ -97,8 +113,9 @@ impl ValidationErrors {
         match child {
             Ok(()) => parent,
             Err(errors) => {
+                let kind = errors.into_kind();
                 parent.and_then(|_| Err(ValidationErrors::new())).map_err(|mut parent_errors| {
-                    parent_errors.add_nested(field, ValidationErrorsKind::Struct(Box::new(errors)));
+                    parent_errors.add_nested(field, kind);
                     parent_errors
                 })
             }
@@ -116,10 +133,7 @@ impl ValidationErrors {
             .into_iter()
             .enumerate()
             .filter_map(|(i, res)| res.err().map(|mut err| (i, err.remove(field))))
-            .filter_map(|(i, entry)| match entry {
-                Some(ValidationErrorsKind::Struct(errors)) => Some((i, errors)),
-                _ => None,
-            })
+            .filter_map(|(i, entry)| entry.map(|kind| (i, Box::new(kind))))
             .collect::<BTreeMap<_, _>>();
 
         if errors.is_empty() {

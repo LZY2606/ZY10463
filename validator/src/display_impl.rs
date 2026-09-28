@@ -53,7 +53,7 @@ fn display_errors(
             let base_len = full_path.len();
             for (idx, err) in errs.iter() {
                 write!(&mut full_path, "[{idx}]")?;
-                display_struct(fmt, err, &full_path)?;
+                display_errors(fmt, err, &full_path)?;
                 full_path.truncate(base_len);
             }
             Ok(())

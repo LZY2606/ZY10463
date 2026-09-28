@@ -303,7 +303,7 @@ fn test_can_validate_vector_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&1));
-        unwrap_map(&errs[&1], |errs| {
+        unwrap_list_element(&errs[&1], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -314,7 +314,7 @@ fn test_can_validate_vector_fields() {
             }
         });
         assert!(errs.contains_key(&3));
-        unwrap_map(&errs[&3], |errs| {
+        unwrap_list_element(&errs[&3], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -367,7 +367,7 @@ fn test_can_validate_slice_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&1));
-        unwrap_map(&errs[&1], |errs| {
+        unwrap_list_element(&errs[&1], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -378,7 +378,7 @@ fn test_can_validate_slice_fields() {
             }
         });
         assert!(errs.contains_key(&3));
-        unwrap_map(&errs[&3], |errs| {
+        unwrap_list_element(&errs[&3], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -430,7 +430,7 @@ fn test_can_validate_array_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&1));
-        unwrap_map(&errs[&1], |errs| {
+        unwrap_list_element(&errs[&1], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -441,7 +441,7 @@ fn test_can_validate_array_fields() {
             }
         });
         assert!(errs.contains_key(&3));
-        unwrap_map(&errs[&3], |errs| {
+        unwrap_list_element(&errs[&3], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -499,7 +499,7 @@ fn test_can_validate_option_vector_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&1));
-        unwrap_map(&errs[&1], |errs| {
+        unwrap_list_element(&errs[&1], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -510,7 +510,7 @@ fn test_can_validate_option_vector_fields() {
             }
         });
         assert!(errs.contains_key(&3));
-        unwrap_map(&errs[&3], |errs| {
+        unwrap_list_element(&errs[&3], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -561,7 +561,7 @@ fn test_can_validate_map_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&0));
-        unwrap_map(&errs[&0], |errs| {
+        unwrap_list_element(&errs[&0], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -608,7 +608,7 @@ fn test_can_validate_ref_map_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&0));
-        unwrap_map(&errs[&0], |errs| {
+        unwrap_list_element(&errs[&0], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -655,7 +655,7 @@ fn test_can_validate_option_map_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&0));
-        unwrap_map(&errs[&0], |errs| {
+        unwrap_list_element(&errs[&0], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -703,7 +703,7 @@ fn test_can_validate_set_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&0));
-        unwrap_map(&errs[&0], |errs| {
+        unwrap_list_element(&errs[&0], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -749,7 +749,7 @@ fn test_can_validate_ref_set_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&0));
-        unwrap_map(&errs[&0], |errs| {
+        unwrap_list_element(&errs[&0], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -795,7 +795,7 @@ fn test_can_validate_option_set_fields() {
     assert!(errs.contains_key("child"));
     if let ValidationErrorsKind::List(ref errs) = errs["child"] {
         assert!(errs.contains_key(&0));
-        unwrap_map(&errs[&0], |errs| {
+        unwrap_list_element(&errs[&0], |errs| {
             assert_eq!(errs.len(), 1);
             assert!(errs.contains_key("value"));
             if let ValidationErrorsKind::Field(ref errs) = errs["value"] {
@@ -909,4 +909,15 @@ where
 {
     let errors = errors.clone();
     f(errors.errors().clone());
+}
+
+#[allow(dead_code)]
+fn unwrap_list_element<F>(kind: &ValidationErrorsKind, f: F)
+where
+    F: FnOnce(HashMap<Cow<'static, str>, ValidationErrorsKind>),
+{
+    match kind {
+        ValidationErrorsKind::Struct(errors) => unwrap_map(errors, f),
+        other => panic!("Expected struct validation errors, got {:?}", other),
+    }
 }

@@ -1,5 +1,14 @@
 ## Changelog
 
+## Unreleased
+
+- Fix nested collection indices being lost in schema errors: `ValidationErrors::merge`
+  now strips the internal `_tmp_validator` marker like `merge_self`, and multi-layer
+  collections (`Vec<Vec<T>>`) keep their nested indices instead of leaking the marker
+  into the error tree and its serialization. `ValidationErrorsKind::List` elements are
+  now `Box<ValidationErrorsKind>` so lists can nest; single-level serialization is
+  unchanged. See `docs/validation-errors-merge.md`.
+
 ## 0.21.0 (2026/07/09)
 
 - Replace dep proc-macro-error2 with proc-macro-error3
